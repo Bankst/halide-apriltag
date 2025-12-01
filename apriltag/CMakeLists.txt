@@ -7,6 +7,7 @@ endif()
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(BUILD_EXAMPLES "Build example executables" ON)
 option(ASAN "Use AddressSanitizer for debug builds to detect memory issues" OFF)
+option(USE_HALIDE "Use Halide acceleration" ON)
 
 if (ASAN)
     set(ASAN_FLAGS "\
@@ -163,45 +164,6 @@ configure_file(${PROJECT_NAME}.pc.in ${PROJECT_NAME}.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 
-
-# Python wrapper
-option(BUILD_PYTHON_WRAPPER "Builds Python wrapper" ON)
-
-find_package(Python3 QUIET COMPONENTS Development NumPy)
-
-if(BUILD_PYTHON_WRAPPER AND Python3_Development_FOUND AND Python3_NumPy_FOUND)
-
-    include(CMake/vtkEncodeString.cmake)
-
-    foreach(X IN ITEMS detect py_type)
-        vtk_encode_string(
-            INPUT ${CMAKE_CURRENT_SOURCE_DIR}/apriltag_${X}.docstring
-            NAME apriltag_${X}_docstring
-        )
-    endforeach()
-    add_custom_target(apriltag_py_docstrings DEPENDS
-        ${PROJECT_BINARY_DIR}/apriltag_detect_docstring.h
-        ${PROJECT_BINARY_DIR}/apriltag_py_type_docstring.h
-    )
-
-    # set the SOABI manually since renaming the library via OUTPUT_NAME does not work on MSVC
-    set(apriltag_py_target "apriltag.${Python3_SOABI}")
-    Python3_add_library(${apriltag_py_target} MODULE ${CMAKE_CURRENT_SOURCE_DIR}/apriltag_pywrap.c)
-    add_dependencies(${apriltag_py_target} apriltag_py_docstrings)
-    # avoid linking against Python3::Python to prevent segmentation faults in Conda environments
-    # https://github.com/AprilRobotics/apriltag/issues/352
-    target_link_libraries(${apriltag_py_target} PRIVATE apriltag Python3::NumPy)
-    target_include_directories(${apriltag_py_target} PRIVATE ${PROJECT_BINARY_DIR})
-
-    set(PY_DEST ${CMAKE_INSTALL_PREFIX}/lib/python${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/site-packages/)
-    install(TARGETS ${apriltag_py_target} LIBRARY DESTINATION ${PY_DEST})
-elseif(BUILD_PYTHON_WRAPPER)
-    message(WARNING
-        "Python bindings requested (BUILD_PYTHON_WRAPPER=ON) but Development and NumPy not found. "
-        "Python bindings will not be built. Set BUILD_PYTHON_WRAPPER=OFF to silent this warnings."
-     )
-endif()
-
 # Examples
 if (BUILD_EXAMPLES)
     # apriltag_demo
@@ -230,6 +192,58 @@ if (BUILD_EXAMPLES)
 
     # install example programs
     install(TARGETS apriltag_demo RUNTIME DESTINATION bin)
+endif()
+
+if (USE_HALIDE)
+    set(_halide_enabled FALSE)
+
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
+        find_package(Halide CONFIG REQUIRED)
+        if (Halide_FOUND)
+            target_sources(apriltag PRIVATE halide/halide_threshold.cpp halide/halide_metal_pipeline.cpp)
+            target_link_libraries(apriltag PUBLIC Halide::Halide)
+            target_compile_definitions(apriltag PUBLIC APRILTAG_HAVE_HALIDE=1)
+            set(_halide_enabled TRUE)
+            message(STATUS "Halide found via CMake package - hybrid detector enabled")
+        endif()
+    endif()
+
+    if (NOT _halide_enabled)
+        # Manual discovery fallback (works with common package layouts, e.g. Homebrew, source builds)
+        set(_halide_search_paths
+            ${HALIDE_ROOT}
+            $ENV{HALIDE_DIR}
+            /opt/homebrew/opt/halide
+            /usr/local/opt/halide
+            /usr/local
+            /opt/halide
+        )
+
+        find_path(HALIDE_INCLUDE_DIR
+            NAMES Halide.h
+            HINTS ${_halide_search_paths}
+            PATH_SUFFIXES include
+        )
+
+        find_library(HALIDE_LIBRARY
+            NAMES Halide
+            HINTS ${_halide_search_paths}
+            PATH_SUFFIXES lib lib64
+        )
+
+        if (HALIDE_INCLUDE_DIR AND HALIDE_LIBRARY)
+            target_sources(apriltag PRIVATE halide_threshold.cpp halide_metal_pipeline.cpp)
+            target_include_directories(apriltag PUBLIC ${HALIDE_INCLUDE_DIR})
+            target_link_libraries(apriltag PUBLIC ${HALIDE_LIBRARY})
+            target_compile_definitions(apriltag PUBLIC APRILTAG_HAVE_HALIDE=1)
+            set(_halide_enabled TRUE)
+            message(STATUS "Halide located at: include=${HALIDE_INCLUDE_DIR}, lib=${HALIDE_LIBRARY}")
+        endif()
+    endif()
+
+    if (NOT _halide_enabled)
+        message(WARNING "Halide not found. Re-run CMake with -DUSE_HALIDE=OFF or set HALIDE_ROOT to your Halide install.")
+    endif()
 endif()
 
 if(BUILD_TESTING)
