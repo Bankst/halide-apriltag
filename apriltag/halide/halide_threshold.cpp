@@ -172,7 +172,9 @@ private:
 
         pipeline_ = std::make_unique<Halide::Pipeline>(std::vector<Func>{output, tile_edge_count, tile_fg_count});
         Halide::Target target = Halide::get_host_target();
-        target.set_feature(Halide::Target::Metal);
+        if (target.has_feature(Halide::Target::Metal)) {
+            target.set_feature(Halide::Target::Metal);
+        }
         pipeline_->compile_jit(target);
     }
 

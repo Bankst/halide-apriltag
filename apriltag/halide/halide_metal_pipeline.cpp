@@ -236,10 +236,27 @@ private:
         Func final_parent = parent_stages.back();
 
         Var xo("xo"), yo("yo"), xi("xi"), yi("yi");
-        threshold.compute_root().gpu_tile(x, y, xo, yo, xi, yi, 32, 16);
+        Halide::Target target = Halide::get_jit_target_from_environment();
 
-        for (Func &stage : parent_stages) {
-            stage.compute_root().gpu_tile(x, y, xo, yo, xi, yi, 32, 16);
+        bool use_gpu =
+            target.has_feature(Halide::Target::Metal)  ||
+            target.has_feature(Halide::Target::CUDA)   ||
+            target.has_feature(Halide::Target::OpenCL) ||
+            target.has_feature(Halide::Target::Vulkan) ||
+            target.has_feature(Halide::Target::WebGPU);
+
+        if (use_gpu) {
+            threshold.compute_root().gpu_tile(x, y, xo, yo, xi, yi, 32, 16);
+
+            for (Func &stage : parent_stages) {
+                stage.compute_root().gpu_tile(x, y, xo, yo, xi, yi, 32, 16);
+            }
+        } else {
+            threshold.compute_root().parallel(y).vectorize(x, 16);
+
+            for (Func &stage : parent_stages) {
+                stage.compute_root().parallel(y).vectorize(x, 16);
+            }
         }
 
         tile_min.compute_root().parallel(ty);
@@ -257,8 +274,6 @@ private:
         pipeline_ = std::make_unique<Halide::Pipeline>(
             std::vector<Func>{threshold, final_parent});
 
-        Halide::Target target = Halide::get_host_target();
-        target.set_feature(Halide::Target::Metal);
         pipeline_->compile_jit(target);
     }
 
