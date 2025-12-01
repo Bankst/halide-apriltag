@@ -4,6 +4,8 @@ project(apriltags_halide
         DESCRIPTION "AprilTag timing harness with optional Halide acceleration"
         LANGUAGES C CXX)
 
+add_subdirectory(apriltag)
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -17,59 +19,13 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 option(USE_HALIDE "Build the Halide-backed threshold pipeline" ON)
 set(HALIDE_ROOT "" CACHE PATH "Root path to a Halide installation (used when auto-detection fails)")
 
-set(APRILTAG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/apriltag)
-set(APRILTAG_COMMON_DIR ${APRILTAG_DIR}/common)
-
-set(APRILTAG_SOURCES
-    ${APRILTAG_DIR}/apriltag.c
-    ${APRILTAG_DIR}/apriltag_pose.c
-    ${APRILTAG_DIR}/apriltag_quad_thresh.c
-    ${APRILTAG_DIR}/tag16h5.c
-    ${APRILTAG_DIR}/tag25h9.c
-    ${APRILTAG_DIR}/tag36h10.c
-    ${APRILTAG_DIR}/tag36h11.c
-    ${APRILTAG_DIR}/tagCircle21h7.c
-    ${APRILTAG_DIR}/tagCircle49h12.c
-    ${APRILTAG_DIR}/tagCustom48h12.c
-    ${APRILTAG_DIR}/tagStandard41h12.c
-    ${APRILTAG_DIR}/tagStandard52h13.c
-)
-
-set(APRILTAG_COMMON_SOURCES
-    ${APRILTAG_COMMON_DIR}/g2d.c
-    ${APRILTAG_COMMON_DIR}/getopt.c
-    ${APRILTAG_COMMON_DIR}/homography.c
-    ${APRILTAG_COMMON_DIR}/image_u8.c
-    ${APRILTAG_COMMON_DIR}/image_u8_parallel.c
-    ${APRILTAG_COMMON_DIR}/image_u8x3.c
-    ${APRILTAG_COMMON_DIR}/image_u8x4.c
-    ${APRILTAG_COMMON_DIR}/matd.c
-    ${APRILTAG_COMMON_DIR}/pam.c
-    ${APRILTAG_COMMON_DIR}/pjpeg-idct.c
-    ${APRILTAG_COMMON_DIR}/pjpeg.c
-    ${APRILTAG_COMMON_DIR}/pnm.c
-    ${APRILTAG_COMMON_DIR}/pthreads_cross.c
-    ${APRILTAG_COMMON_DIR}/string_util.c
-    ${APRILTAG_COMMON_DIR}/svd22.c
-    ${APRILTAG_COMMON_DIR}/time_util.c
-    ${APRILTAG_COMMON_DIR}/unionfind.c
-    ${APRILTAG_COMMON_DIR}/workerpool.c
-    ${APRILTAG_COMMON_DIR}/zarray.c
-    ${APRILTAG_COMMON_DIR}/zhash.c
-    ${APRILTAG_COMMON_DIR}/zmaxheap.c
-)
-
 add_executable(apriltag_timing
     apriltag_timing.cpp
-    ${APRILTAG_SOURCES}
-    ${APRILTAG_COMMON_SOURCES}
 )
 
 target_include_directories(apriltag_timing
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${APRILTAG_DIR}
-        ${APRILTAG_COMMON_DIR}
 )
 
 find_package(Threads REQUIRED)
@@ -77,6 +33,7 @@ find_package(ZLIB REQUIRED)
 
 target_link_libraries(apriltag_timing
     PRIVATE
+        apriltag
         Threads::Threads
         ZLIB::ZLIB
 )
