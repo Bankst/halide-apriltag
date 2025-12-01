@@ -1,4 +1,5 @@
 
+#include <Halide.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -25,6 +26,8 @@ extern "C" {
 #include "apriltag/common/string_util.h"
 #include <zlib.h>
 }
+
+#include <fmt/format.h>
 
 #ifdef APRILTAG_HAVE_HALIDE
 extern "C" image_u8_t *halide_threshold(apriltag_detector_t *td, image_u8_t *im);
@@ -557,6 +560,46 @@ int main(int argc, char *argv[]) {
 
     if (halide_only) {
         compare_halide = false;
+    }
+
+    if (compare_halide || halide_only) {
+        // Try detecting platform
+        Halide::Target target = Halide::get_jit_target_from_environment();
+        fmt::println("Target Info: {}", target.to_string());
+
+        struct Backend {
+            Halide::Target::Feature feature;
+            const char *name;
+        };
+
+        // List the GPU-ish backends Halide can target.
+        // (If your Halide build doesn't include one, support check will be false.)
+        std::vector<Backend> backends = {
+            {Halide::Target::Metal,   "Metal"},
+            {Halide::Target::CUDA,    "CUDA"},
+            {Halide::Target::OpenCL,  "OpenCL"},
+            {Halide::Target::Vulkan,  "Vulkan"},
+            {Halide::Target::WebGPU,  "WebGPU"},
+            // {Target::OpenGLCompute, "OpenGLCompute"},
+            // Uncomment if your Halide version has these:
+            // {Target::D3D12Compute, "D3D12Compute"},
+        };
+
+        std::cerr << "Base JIT target: " << target.to_string() << "\n";
+
+        for (const auto &b : backends) {
+            Halide::Target t = target.with_feature(b.feature);
+
+            bool requested_in_base = target.has_feature(b.feature);
+            bool runtime_ok = Halide::host_supports_target_device(t);
+
+            std::cerr
+                << b.name << ": "
+                << (runtime_ok ? "AVAILABLE" : "not available")
+                << " | requested_in_base=" << (requested_in_base ? "yes" : "no")
+                << " | probe_target=" << t.to_string()
+                << "\n";
+        }
     }
 
     if (image_path == NULL) {

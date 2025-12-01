@@ -37,6 +37,14 @@ target_include_directories(apriltag_timing
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+include(FetchContent)
+
+FetchContent_Declare(
+  fmt
+  GIT_REPOSITORY https://github.com/fmtlib/fmt
+  GIT_TAG        e69e5f977d458f2650bb346dadf2ad30c5320281) # 10.2.1
+FetchContent_MakeAvailable(fmt)
+
 find_package(Threads REQUIRED)
 find_package(ZLIB REQUIRED)
 
@@ -45,61 +53,10 @@ target_link_libraries(apriltag_timing
         apriltag
         Threads::Threads
         ZLIB::ZLIB
+        fmt::fmt
 )
 
 find_library(MATH_LIBRARY m)
 if (MATH_LIBRARY)
     target_link_libraries(apriltag_timing PRIVATE ${MATH_LIBRARY})
 endif()
-
-# if (USE_HALIDE)
-#     set(_halide_enabled FALSE)
-
-#     if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.28)
-#         find_package(Halide CONFIG QUIET)
-#         if (Halide_FOUND)
-#             target_sources(apriltag_timing PRIVATE halide_threshold.cpp halide_metal_pipeline.cpp)
-#             target_link_libraries(apriltag_timing PRIVATE Halide::Halide)
-#             target_compile_definitions(apriltag_timing PRIVATE APRILTAG_HAVE_HALIDE=1)
-#             set(_halide_enabled TRUE)
-#             message(STATUS "Halide found via CMake package - hybrid detector enabled")
-#         endif()
-#     endif()
-
-#     if (NOT _halide_enabled)
-#         # Manual discovery fallback (works with common package layouts, e.g. Homebrew, source builds)
-#         set(_halide_search_paths
-#             ${HALIDE_ROOT}
-#             $ENV{HALIDE_DIR}
-#             /opt/homebrew/opt/halide
-#             /usr/local/opt/halide
-#             /usr/local
-#             /opt/halide
-#         )
-
-#         find_path(HALIDE_INCLUDE_DIR
-#             NAMES Halide.h
-#             HINTS ${_halide_search_paths}
-#             PATH_SUFFIXES include
-#         )
-
-#         find_library(HALIDE_LIBRARY
-#             NAMES Halide
-#             HINTS ${_halide_search_paths}
-#             PATH_SUFFIXES lib lib64
-#         )
-
-#         if (HALIDE_INCLUDE_DIR AND HALIDE_LIBRARY)
-#             target_sources(apriltag_timing PRIVATE halide_threshold.cpp halide_metal_pipeline.cpp)
-#             target_include_directories(apriltag_timing PRIVATE ${HALIDE_INCLUDE_DIR})
-#             target_link_libraries(apriltag_timing PRIVATE ${HALIDE_LIBRARY})
-#             target_compile_definitions(apriltag_timing PRIVATE APRILTAG_HAVE_HALIDE=1)
-#             set(_halide_enabled TRUE)
-#             message(STATUS "Halide located at: include=${HALIDE_INCLUDE_DIR}, lib=${HALIDE_LIBRARY}")
-#         endif()
-#     endif()
-
-#     if (NOT _halide_enabled)
-#         message(WARNING "Halide not found. Re-run CMake with -DUSE_HALIDE=OFF or set HALIDE_ROOT to your Halide install.")
-#     endif()
-# endif()
